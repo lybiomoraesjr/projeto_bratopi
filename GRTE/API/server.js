@@ -1,5 +1,6 @@
 require('dotenv').config()
 const express = require('express')
+const cors = require('cors')
 
 const usersRouter = require('./routes/users')
 const authRouter = require('./routes/auth')
@@ -10,6 +11,10 @@ const db = require('./services/dbConnection')
 
 const app = express()
 
+app.use(cors({
+    origin: 'http://localhost:3000', // ou o endereço do seu frontend
+    credentials: true,
+}));
 app.use(express.json())
 
 // connect to MongoDB before mounting routes
@@ -19,7 +24,7 @@ db.connect().catch(err => {
 })
 
 // public
-app.use('/auth', authRouter)
+app.use('/api/auth', authRouter)
 app.use('/api/users', usersRouter)
 
 // protected resources

@@ -51,4 +51,20 @@ async function remove(req, res, next) {
     } catch (err) { next(err) }
 }
 
-module.exports = { list, getById, create, update, remove }
+async function getAllRotas(req, res, next) {
+    try {
+        const rotas = await Rota.find().lean()
+        res.json(rotas)
+    } catch (err) {
+        next(err)
+    }
+}
+
+module.exports = {
+    getAllRotas,
+    list,
+    getById,
+    create,
+    update,
+    remove,
+}

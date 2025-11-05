@@ -43,11 +43,11 @@ import { CSS } from "@dnd-kit/utilities";
 import "leaflet/dist/leaflet.css";
 import type { Route, RouteForm } from "../../types/route.types";
 import {
-    initialRoutes,
     periodicityOptions,
     stopOptions,
     studentOptions,
 } from "../../mock/route.mock";
+import { API_CONFIG } from "../../config/api.config";
 
 const emptyForm: RouteForm = {
     name: "",
@@ -87,7 +87,9 @@ function SortableItem({ id, children }: SortableItemProps) {
 }
 
 const RouteManager = () => {
-    const [routes, setRoutes] = useState<Route[]>(initialRoutes);
+    const [routes, setRoutes] = useState<Route[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<"create" | "edit">("create");
     const [form, setForm] = useState<RouteForm>(emptyForm);
@@ -99,6 +101,27 @@ const RouteManager = () => {
     const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
     const [isFallbackRoute, setIsFallbackRoute] = useState(false);
     const routeRequestController = useRef<AbortController | null>(null);
+
+    useEffect(() => {
+        const fetchRoutes = async () => {
+            try {
+                setIsLoading(true);
+                setError(null);
+                const response = await fetch(`${API_CONFIG.baseURL}/api/rotas`, { credentials: 'include' });
+                if (!response.ok) {
+                    throw new Error('Falha ao buscar rotas');
+                }
+                const data = await response.json();
+                setRoutes(data);
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchRoutes();
+    }, []);
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -353,14 +376,26 @@ const RouteManager = () => {
                         <Table.Thead>
                             <Table.Tr>
                                 <Table.Th>Nome da rota</Table.Th>
-                                <Table.Th>Horário</Table.Th>
+                                <Table.Th>Periodicidade</Table.Th>
                                 <Table.Th>Nº de alunos</Table.Th>
                                 <Table.Th>Nº de paradas</Table.Th>
                                 <Table.Th style={{ width: 160 }}>Ações</Table.Th>
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
-                            {routes.length === 0 && (
+                            {isLoading ? (
+                                <Table.Tr>
+                                    <Table.Td colSpan={5}>
+                                        <Text ta="center">Carregando rotas...</Text>
+                                    </Table.Td>
+                                </Table.Tr>
+                            ) : error ? (
+                                <Table.Tr>
+                                    <Table.Td colSpan={5}>
+                                        <Text ta="center" c="red">{error}</Text>
+                                    </Table.Td>
+                                </Table.Tr>
+                            ) : routes.length === 0 ? (
                                 <Table.Tr>
                                     <Table.Td colSpan={5}>
                                         <Text c="dimmed" ta="center">
@@ -368,44 +403,45 @@ const RouteManager = () => {
                                         </Text>
                                     </Table.Td>
                                 </Table.Tr>
+                            ) : (
+                                routes.map((route) => (
+                                    <Table.Tr key={route.id}>
+                                        <Table.Td>
+                                            <Stack gap={4}>
+                                                <Text fw={600}>{route.name}</Text>
+                                                <Text size="sm" c="dimmed">
+                                                    {route.startTime} - {route.endTime}
+                                                </Text>
+                                            </Stack>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Badge variant="light">{periodicityOptions.find(p => p.value === route.periodicity)?.label}</Badge>
+                                        </Table.Td>
+                                        <Table.Td>{route.selectedStudents.length}</Table.Td>
+                                        <Table.Td>{route.stopSequence.length}</Table.Td>
+                                        <Table.Td>
+                                            <Group gap={8}>
+                                                <Button
+                                                    size="xs"
+                                                    variant="subtle"
+                                                    leftSection={<Pencil size={16} />}
+                                                    onClick={() => openEditModal(route)}
+                                                >
+                                                    Editar
+                                                </Button>
+                                                <ActionIcon
+                                                    color="red"
+                                                    variant="subtle"
+                                                    onClick={() => openDeleteModal(route)}
+                                                    aria-label="Excluir rota"
+                                                >
+                                                    <Trash size={18} />
+                                                </ActionIcon>
+                                            </Group>
+                                        </Table.Td>
+                                    </Table.Tr>
+                                ))
                             )}
-                            {routes.map((route) => (
-                                <Table.Tr key={route.id}>
-                                    <Table.Td>
-                                        <Stack gap={4}>
-                                            <Text fw={600}>{route.name}</Text>
-                                            <Text size="sm" c="dimmed">
-                                                {route.startTime} - {route.endTime}
-                                            </Text>
-                                        </Stack>
-                                    </Table.Td>
-                                    <Table.Td>
-                                        <Badge variant="light">{periodicityOptions.find(p => p.value === route.periodicity)?.label}</Badge>
-                                    </Table.Td>
-                                    <Table.Td>{route.selectedStudents.length}</Table.Td>
-                                    <Table.Td>{route.stopSequence.length}</Table.Td>
-                                    <Table.Td>
-                                        <Group gap={8}>
-                                            <Button
-                                                size="xs"
-                                                variant="subtle"
-                                                leftSection={<Pencil size={16} />}
-                                                onClick={() => openEditModal(route)}
-                                            >
-                                                Editar
-                                            </Button>
-                                            <ActionIcon
-                                                color="red"
-                                                variant="subtle"
-                                                onClick={() => openDeleteModal(route)}
-                                                aria-label="Excluir rota"
-                                            >
-                                                <Trash size={18} />
-                                            </ActionIcon>
-                                        </Group>
-                                    </Table.Td>
-                                </Table.Tr>
-                            ))}
                         </Table.Tbody>
                     </Table>
                 </ScrollArea>

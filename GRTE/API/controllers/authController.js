@@ -1,32 +1,50 @@
-const { randomUUID } = require('crypto')
-const Session = require('../models/Session')
+const { randomUUID } = require('crypto');
+const bcrypt = require('bcrypt');
+const Session = require('../models/Session');
+const User = require('../models/User');
 
-// credenciais hardcoded conforme solicitado
-const HARDCODED = { email: 'admin@example.com', password: '3456', name: 'Administrador' }
+// credenciais hardcoded conforme solicitado - REMOVIDO
 
-const COOKIE_NAME = 'token'
+const COOKIE_NAME = 'token';
 const COOKIE_OPTIONS = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     // opcional: duração do cookie (em ms)
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 dias
-}
+};
 
 async function login(req, res, next) {
     try {
-        const { email, password } = req.body || {}
-        if (email !== HARDCODED.email || String(password) !== String(HARDCODED.password)) {
-            return res.status(401).json({ error: 'Credenciais inválidas' })
-        }
-        const user = { email: HARDCODED.email, name: HARDCODED.name }
-        const token = (typeof randomUUID === 'function') ? randomUUID() : String(Date.now())
-        await Session.create({ token, user })
+        const { email, password } = req.body || {};
 
-        // define cookie HttpOnly com o token (não enviar o token no body)
-        res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS)
-        res.json({ user })
-    } catch (err) { next(err) }
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+        }
+
+        // 1. Encontrar o usuário pelo email
+        const user = await User.findOne({ email }).select('+password');
+        if (!user) {
+            return res.status(401).json({ error: 'Credenciais inválidas' });
+        }
+
+        // 2. Comparar a senha fornecida com a senha hasheada no banco
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Credenciais inválidas' });
+        }
+
+        // 3. Criar a sessão
+        const token = (typeof randomUUID === 'function') ? randomUUID() : String(Date.now());
+        const sessionUser = { email: user.email, name: user.name };
+        await Session.create({ token, user: sessionUser });
+
+        // 4. Enviar o token como cookie e os dados do usuário no corpo
+        res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
+        res.json({ user: sessionUser });
+    } catch (err) {
+        next(err);
+    }
 }
 
 async function logout(req, res, next) {

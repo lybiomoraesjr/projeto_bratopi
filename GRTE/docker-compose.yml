@@ -19,10 +19,6 @@ services:
       PORT: 3456
     ports:
       - "3456:3456"
-    # bind mount useful for development; remove in production
-    volumes:
-      - ./API:/app
-      - /app/node_modules
     command: npm run dev
 
   frontend:
@@ -33,7 +29,7 @@ services:
     environment:
       PORT: 5173
     ports:
-      - "5173:5173"
+      - "3000:5173"
     # bind mount useful for development; remove in production
     volumes:
       - ./FRONT:/app

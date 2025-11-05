@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # For development we want devDependencies (nodemon)
-RUN npm ci
+RUN npm install
 
 # Copy app
 COPY . .

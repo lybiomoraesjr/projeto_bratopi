@@ -7,7 +7,7 @@ import {
 	type ReactNode,
 } from "react";
 import { LOCAL_STORAGE_KEYS } from "../config/storage.config";
-import { MOCK_CREDENTIALS, MOCK_USER } from "../mock/auth.mock";
+import { API_CONFIG } from "../config/api.config";
 
 export type AuthUser = {
 	id: string;
@@ -58,22 +58,39 @@ export const AuthContextProvider = ({ children }: AuthContextProviderProps) => {
 	const signIn = async ({ email, password }: SignInParams) => {
 		setIsLoadingUserStorageData(true);
 		try {
-			await new Promise((resolve) => setTimeout(resolve, 400));
+			const response = await fetch(`${API_CONFIG.baseURL}/api/auth/login`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ email, password }),
+			});
 
-			if (email !== MOCK_CREDENTIALS.email || password !== MOCK_CREDENTIALS.password) {
-				throw new Error("Credenciais inválidas");
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.error || "Credenciais inválidas");
 			}
 
-			localStorage.setItem(LOCAL_STORAGE_KEYS.USER, JSON.stringify(MOCK_USER));
-			setUser(MOCK_USER);
+			const { user } = await response.json();
+
+			localStorage.setItem(LOCAL_STORAGE_KEYS.USER, JSON.stringify(user));
+			setUser(user);
 		} finally {
 			setIsLoadingUserStorageData(false);
 		}
 	};
 
-	const signOut = () => {
-		localStorage.removeItem(LOCAL_STORAGE_KEYS.USER);
-		setUser(null);
+	const signOut = async () => {
+		try {
+			await fetch(`${API_CONFIG.baseURL}/api/auth/logout`, {
+				method: 'POST',
+			});
+		} catch (error) {
+			console.error("Failed to logout from API", error);
+		} finally {
+			localStorage.removeItem(LOCAL_STORAGE_KEYS.USER);
+			setUser(null);
+		}
 	};
 
 	const value = useMemo(
