@@ -82,14 +82,14 @@ Use as seguintes credenciais para fazer login:
 
 ### Autenticação (Público)
 
-- `POST /auth/login` - Fazer login
+- `POST /api/auth/login` - Fazer login
   ```json
   {
     "email": "admin@example.com",
     "password": "345678"
   }
   ```
-- `POST /auth/logout` - Fazer logout
+- `POST /api/auth/logout` - Fazer logout
 
 ### Usuários (Público)
 
@@ -266,7 +266,7 @@ VITE_API_BASE_URL=http://localhost:3456
 
 ```bash
 # Login
-curl -i -X POST http://localhost:3456/auth/login \
+curl -i -X POST http://localhost:3456/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com","password":"345678"}' \
   -c cookies.txt
@@ -288,7 +288,7 @@ curl -X POST http://localhost:3456/api/paradas \
 
 ### Usando Postman ou Insomnia
 
-1. Faça login em `POST http://localhost:3456/auth/login`
+1. Faça login em `POST http://localhost:3456/api/auth/login`
 2. O token será salvo automaticamente nos cookies
 3. Use os demais endpoints normalmente
 

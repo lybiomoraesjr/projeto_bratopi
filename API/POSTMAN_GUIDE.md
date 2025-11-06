@@ -49,7 +49,7 @@ docker-compose exec api npm run seed:alunos
 **Base URL:** `http://localhost:3456`
 
 ### Importante
-- Todas as rotas (exceto `/auth/login` e `/api/users`) requerem autenticação
+- Todas as rotas (exceto `/api/auth/login` e `/api/users`) requerem autenticação
 - A autenticação é feita via **cookie HttpOnly** chamado `token`
 - Configure o Postman para aceitar cookies automaticamente
 
@@ -59,7 +59,7 @@ docker-compose exec api npm run seed:alunos
 
 ### Login
 ```
-POST http://localhost:3456/auth/login
+POST http://localhost:3456/api/auth/login
 Content-Type: application/json
 
 Body:
@@ -83,7 +83,7 @@ Resposta (200 OK):
 
 ### Logout
 ```
-POST http://localhost:3456/auth/logout
+POST http://localhost:3456/api/auth/logout
 
 Resposta (200 OK):
 {
@@ -400,7 +400,7 @@ Crie uma variável `baseUrl` com valor `http://localhost:3456`
 
 **Ordem recomendada:**
 
-1. ✅ **POST** `/auth/login` - Fazer login (cookie será salvo)
+1. ✅ **POST** `/api/auth/login` - Fazer login (cookie será salvo)
 2. ✅ **GET** `/api/users` - Testar rota pública
 3. ✅ **GET** `/api/paradas` - Testar rota protegida
 4. ✅ **POST** `/api/paradas` - Criar nova parada
@@ -409,7 +409,7 @@ Crie uma variável `baseUrl` com valor `http://localhost:3456`
 7. ✅ **GET** `/api/rotas` - Listar todas as rotas
 8. ✅ **PUT** `/api/rotas/:id` - Atualizar rota
 9. ✅ **DELETE** `/api/rotas/:id` - Deletar rota
-10. ✅ **POST** `/auth/logout` - Fazer logout
+10. ✅ **POST** `/api/auth/logout` - Fazer logout
 
 ---
 
@@ -457,14 +457,14 @@ Copie e salve como `GRTE_API.postman_collection.json`:
               "mode": "raw",
               "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"345678\"\n}"
             },
-            "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]}
+            "url": {"raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"]}
           }
         },
         {
           "name": "Logout",
           "request": {
             "method": "POST",
-            "url": {"raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"]}
+            "url": {"raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"]}
           }
         }
       ]

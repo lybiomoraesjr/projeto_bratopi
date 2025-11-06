@@ -13,8 +13,8 @@ Endpoints:
 
 Adicionadas também rotas protegidas para autenticação, rotas escolares e paradas:
 
-- POST /auth/login — faz login com credenciais hardcoded (body: { email, password })
-- POST /auth/logout — invalida token (envia Authorization: Bearer <token>)
+- POST /api/auth/login — faz login com credenciais hardcoded (body: { email, password })
+- POST /api/auth/logout — invalida token (envia Authorization: Bearer <token>)
 - GET /api/paradas — lista paradas (protegido)
 - GET /api/paradas/:id — obtém parada por id (protegido)
 - POST /api/paradas — cria parada (body: { name, lat, lng }) (protegido)
@@ -47,7 +47,7 @@ Criar:
 
 ```bash
 # exemplo: login (credenciais: admin@example.com / 345678)
-curl -X POST http://localhost:3456/auth/login -H 'Content-Type: application/json' -d '{"email":"admin@example.com","password":"345678"}'
+curl -X POST http://localhost:3456/api/auth/login -H 'Content-Type: application/json' -d '{"email":"admin@example.com","password":"345678"}'
 
 # use o token retornado nas próximas chamadas com header: Authorization: Bearer <token>
 
@@ -117,7 +117,7 @@ npm install mongoose dotenv
 npm run dev
 ```
 
-Agora os endpoints `/api/paradas` e `/api/rotas` usam MongoDB para persistência e `/auth/login` grava sessões na coleção `sessions`.
+Agora os endpoints `/api/paradas` e `/api/rotas` usam MongoDB para persistência e `/api/auth/login` grava sessões na coleção `sessions`.
 
 Rodando com Docker (MongoDB + app)
 ---------------------------------

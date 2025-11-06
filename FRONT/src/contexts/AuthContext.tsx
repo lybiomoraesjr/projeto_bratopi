@@ -7,12 +7,12 @@ import {
 	type ReactNode,
 } from "react";
 import { LOCAL_STORAGE_KEYS } from "../config/storage.config";
-import { API_CONFIG } from "../config/api.config";
+import { useAuthApi } from "../hooks/useAuthApi";
 
 export type AuthUser = {
-	id: string;
 	name: string;
 	email: string;
+	role?: string;
 };
 
 type SignInParams = {
@@ -39,6 +39,7 @@ type AuthContextProviderProps = {
 export const AuthContextProvider = ({ children }: AuthContextProviderProps) => {
 	const [user, setUser] = useState<AuthUser | null>(null);
 	const [isLoadingUserStorageData, setIsLoadingUserStorageData] = useState(true);
+	const { login, logout } = useAuthApi();
 
 	useEffect(() => {
 		try {
@@ -58,23 +59,17 @@ export const AuthContextProvider = ({ children }: AuthContextProviderProps) => {
 	const signIn = async ({ email, password }: SignInParams) => {
 		setIsLoadingUserStorageData(true);
 		try {
-			const response = await fetch(`${API_CONFIG.baseURL}/api/auth/login`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({ email, password }),
-			});
-
-			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.error || "Credenciais inválidas");
-			}
-
-			const { user } = await response.json();
-
-			localStorage.setItem(LOCAL_STORAGE_KEYS.USER, JSON.stringify(user));
-			setUser(user);
+			const { user: apiUser } = await login({ email, password });
+			const normalizedUser: AuthUser = {
+				name: apiUser.name,
+				email: apiUser.email,
+				role: apiUser.role,
+			};
+			localStorage.setItem(
+				LOCAL_STORAGE_KEYS.USER,
+				JSON.stringify(normalizedUser),
+			);
+			setUser(normalizedUser);
 		} finally {
 			setIsLoadingUserStorageData(false);
 		}
@@ -82,9 +77,7 @@ export const AuthContextProvider = ({ children }: AuthContextProviderProps) => {
 
 	const signOut = async () => {
 		try {
-			await fetch(`${API_CONFIG.baseURL}/api/auth/logout`, {
-				method: 'POST',
-			});
+			await logout();
 		} catch (error) {
 			console.error("Failed to logout from API", error);
 		} finally {
