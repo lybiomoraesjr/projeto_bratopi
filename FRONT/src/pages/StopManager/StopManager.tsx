@@ -36,7 +36,7 @@ L.Icon.Default.mergeOptions({
 });
 
 import type { Stop } from "../../types/stop.types";
-import { initialStops } from "../../mock/stop.mock";
+import { useStopsApi } from "../../hooks/useStopsApi";
 
 // Componente para centralizar o mapa quando uma parada é selecionada
 function MapViewController({ center }: { center: [number, number] | null }) {
@@ -60,9 +60,11 @@ function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number
 }
 
 const StopManager = () => {
-    const [stops, setStops] = useState<Stop[]>(initialStops);
+    const { listStops, createStop, updateStop, deleteStop } = useStopsApi();
+
+    const [stops, setStops] = useState<Stop[]>([]);
     const [search, setSearch] = useState("");
-    const [selectedId, setSelectedId] = useState<string | null>(initialStops[1]?.id ?? null);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
 
     const [addOpen, setAddOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
@@ -78,6 +80,40 @@ const StopManager = () => {
 
     const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
     const [searchingAddress, setSearchingAddress] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let mounted = true;
+
+        async function fetchStops() {
+            try {
+                setIsLoading(true);
+                setError(null);
+                const data = await listStops();
+                if (!mounted) return;
+                setStops(data);
+                if (data.length > 0) {
+                    setSelectedId(data[0].id);
+                    setMapCenter([data[0].lat, data[0].lng]);
+                }
+            } catch (err) {
+                if (!mounted) return;
+                const message = err instanceof Error ? err.message : "Erro ao carregar paradas";
+                setError(message);
+            } finally {
+                if (mounted) setIsLoading(false);
+            }
+        }
+
+        fetchStops();
+
+        return () => {
+            mounted = false;
+        };
+    }, [listStops]);
 
     const filtered = useMemo(
         () =>
@@ -105,29 +141,69 @@ const StopManager = () => {
         setDeleteOpen(true);
     }
 
-    function saveAdd() {
-        const id = String(Date.now());
-        const newStop = { id, ...form };
-        setStops((prev) => [...prev, newStop]);
-        setSelectedId(id);
-        setMapCenter([form.lat, form.lng]);
-        setAddOpen(false);
+    async function saveAdd() {
+        try {
+            setIsSaving(true);
+            setError(null);
+            const payload = { ...form };
+            const created = await createStop(payload);
+            setStops((prev) => [...prev, created]);
+            setSelectedId(created.id);
+            setMapCenter([created.lat, created.lng]);
+            setAddOpen(false);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Erro ao salvar parada";
+            setError(message);
+        } finally {
+            setIsSaving(false);
+        }
     }
 
-    function saveEdit() {
+    async function saveEdit() {
         if (!current) return;
-        setStops((prev) => prev.map((s) => (s.id === current.id ? { ...s, ...form } : s)));
-        setMapCenter([form.lat, form.lng]);
-        setEditOpen(false);
-        setCurrent(null);
+        try {
+            setIsSaving(true);
+            setError(null);
+            const payload = { ...form };
+            const updated = await updateStop(current.id, payload);
+            setStops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+            setMapCenter([updated.lat, updated.lng]);
+            setEditOpen(false);
+            setCurrent(null);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Erro ao atualizar parada";
+            setError(message);
+        } finally {
+            setIsSaving(false);
+        }
     }
 
-    function confirmDelete() {
+    async function confirmDelete() {
         if (!current) return;
-        setStops((prev) => prev.filter((s) => s.id !== current.id));
-        if (selectedId === current.id) setSelectedId(null);
-        setDeleteOpen(false);
-        setCurrent(null);
+        try {
+            setIsDeleting(true);
+            setError(null);
+            await deleteStop(current.id);
+            const updatedStops = stops.filter((s) => s.id !== current.id);
+            setStops(updatedStops);
+            if (selectedId === current.id) {
+                const nextStop = updatedStops[0];
+                if (nextStop) {
+                    setSelectedId(nextStop.id);
+                    setMapCenter([nextStop.lat, nextStop.lng]);
+                } else {
+                    setSelectedId(null);
+                    setMapCenter(null);
+                }
+            }
+            setDeleteOpen(false);
+            setCurrent(null);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Erro ao excluir parada";
+            setError(message);
+        } finally {
+            setIsDeleting(false);
+        }
     }
 
     function handleMapClick(lat: number, lng: number) {
@@ -203,9 +279,24 @@ const StopManager = () => {
                         </Button>
                     </Group>
 
+                    {error && (
+                        <Card withBorder p="sm" radius="md" bg="red.0">
+                            <Text size="sm" c="red.7">
+                                {error}
+                            </Text>
+                        </Card>
+                    )}
+
                     <ScrollArea.Autosize mah={520} type="auto">
                         <Stack gap={8} pr={4}>
-                            {filtered.map((s) => (
+                            {isLoading ? (
+                                <Group justify="center" py={48}>
+                                    <Loader size="sm" />
+                                    <Text size="sm" c="dimmed">
+                                        Carregando paradas...
+                                    </Text>
+                                </Group>
+                            ) : filtered.map((s) => (
                                 <Group
                                     key={s.id}
                                     p={12}
@@ -240,7 +331,7 @@ const StopManager = () => {
                                     </Group>
                                 </Group>
                             ))}
-                            {filtered.length === 0 && (
+                            {!isLoading && filtered.length === 0 && (
                                 <Text c="dimmed" ta="center" py={24}>
                                     Nenhuma parada encontrada
                                 </Text>
@@ -381,7 +472,9 @@ const StopManager = () => {
                             <Button variant="default" onClick={() => setAddOpen(false)}>
                                 Cancelar
                             </Button>
-                            <Button type="submit">Salvar Parada</Button>
+                            <Button type="submit" loading={isSaving} disabled={isSaving}>
+                                Salvar Parada
+                            </Button>
                         </Group>
                     </Stack>
                 </form>
@@ -454,7 +547,9 @@ const StopManager = () => {
                             <Button variant="default" onClick={() => setEditOpen(false)}>
                                 Cancelar
                             </Button>
-                            <Button type="submit">Salvar</Button>
+                            <Button type="submit" loading={isSaving} disabled={isSaving}>
+                                Salvar
+                            </Button>
                         </Group>
                     </Stack>
                 </form>
@@ -475,7 +570,7 @@ const StopManager = () => {
                         <Button variant="default" onClick={() => setDeleteOpen(false)}>
                             Cancelar
                         </Button>
-                        <Button color="red" onClick={confirmDelete}>
+                        <Button color="red" onClick={confirmDelete} loading={isDeleting} disabled={isDeleting}>
                             Excluir
                         </Button>
                     </Group>

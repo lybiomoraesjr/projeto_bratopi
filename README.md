@@ -176,6 +176,19 @@ docker-compose logs -f frontend
 docker-compose logs -f mongo
 ```
 
+### Reiniciar serviços rapidamente
+
+```bash
+# Reiniciar somente a API
+docker-compose restart api
+
+# Reiniciar somente o frontend
+docker-compose restart frontend
+
+# Reiniciar todos os serviços de uma vez
+docker-compose restart
+```
+
 ### Parar os serviços
 
 ```bash
