@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Paper,
   Group,
@@ -17,8 +17,37 @@ import { DataTable } from 'mantine-datatable';
 import { Pencil, Trash, Warning, Plus, MagnifyingGlass } from 'phosphor-react';
 import { initialStudents, schools } from '../../mock/student.mock';
 import type { Student } from '../../types/student.types';
+import {
+  useStudentsApi,
+  type StudentRecord,
+  type StudentPayload,
+} from '../../hooks/useStudentsApi';
 
 type StudentFormValues = Omit<Student, 'status'> & { status: boolean };
+
+const toPayload = (form: StudentFormValues): StudentPayload => ({
+  name: form.name,
+  email: form.email,
+  cpf: form.cpf,
+  matricula: form.matricula,
+  turno: form.turno,
+  escola: form.escola,
+  endereco: form.endereco,
+  telefone: form.telefone,
+  status: form.status ? 'Ativo' : 'Inativo',
+});
+
+const toFormValues = (student: StudentRecord): StudentFormValues => ({
+  name: student.name,
+  email: student.email,
+  cpf: student.cpf,
+  matricula: student.matricula,
+  turno: student.turno,
+  escola: student.escola,
+  endereco: student.endereco,
+  telefone: student.telefone,
+  status: student.status === 'Ativo',
+});
 
 const buildEmptyForm = (): StudentFormValues => ({
   name: '',
@@ -33,14 +62,64 @@ const buildEmptyForm = (): StudentFormValues => ({
 });
 
 const StudentManagement = () => {
-  const [students, setStudents] = useState<Student[]>(initialStudents);
+  const fallbackStudents = useMemo<StudentRecord[]>(
+    () =>
+      initialStudents.map((student, index) => ({
+        ...student,
+        id: student.matricula || `fallback-${index}`,
+      })),
+    [],
+  );
+
+  const { listStudents, createStudent, updateStudent, deleteStudent } = useStudentsApi();
+
+  const [students, setStudents] = useState<StudentRecord[]>([]);
   const [search, setSearch] = useState<string>('');
   const [addModalOpen, setAddModalOpen] = useState<boolean>(false);
   const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<StudentRecord | null>(null);
   const [addForm, setAddForm] = useState<StudentFormValues>(buildEmptyForm());
   const [editForm, setEditForm] = useState<StudentFormValues>(buildEmptyForm());
+  const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
+  const [isSavingAdd, setIsSavingAdd] = useState<boolean>(false);
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [generalError, setGeneralError] = useState<string>('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchStudents = async () => {
+      setIsTableLoading(true);
+      setGeneralError('');
+      try {
+        const data = await listStudents();
+        if (isMounted) {
+          setStudents(data);
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          setGeneralError(error.message);
+        } else {
+          setGeneralError('Falha ao carregar alunos da API.');
+        }
+        if (isMounted) {
+          setStudents(fallbackStudents);
+        }
+      } finally {
+        if (isMounted) {
+          setIsTableLoading(false);
+        }
+      }
+    };
+
+    fetchStudents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fallbackStudents, listStudents]);
 
   const filteredStudents = students.filter(
     (s) =>
@@ -53,70 +132,90 @@ const StudentManagement = () => {
   const openAddModal = () => {
     setAddForm(buildEmptyForm());
     setAddModalOpen(true);
+    setGeneralError('');
   };
 
-  const handleEdit = (student: Student) => {
-    setEditForm({
-      name: student.name,
-      email: student.email,
-      cpf: student.cpf,
-      matricula: student.matricula,
-      turno: student.turno,
-      escola: student.escola,
-      endereco: student.endereco,
-      telefone: student.telefone,
-      status: student.status === 'Ativo',
-    });
+  const handleEdit = (student: StudentRecord) => {
+    setEditForm(toFormValues(student));
     setSelectedStudent(student);
     setEditModalOpen(true);
+    setGeneralError('');
   };
 
-  const handleDelete = (student: Student) => {
+  const handleDelete = (student: StudentRecord) => {
     setSelectedStudent(student);
     setDeleteModalOpen(true);
+    setGeneralError('');
   };
 
-  const handleAdd = () => {
-    const newStudent: Student = {
-      ...addForm,
-      status: addForm.status ? 'Ativo' : 'Inativo',
-    };
-
-    setStudents((prev) => [...prev, newStudent]);
-    setAddModalOpen(false);
-    setAddForm(buildEmptyForm());
+  const handleAdd = async () => {
+    setIsSavingAdd(true);
+    setGeneralError('');
+    try {
+      const payload = toPayload(addForm);
+      const created = await createStudent(payload);
+  setStudents((prev) => [...prev, created]);
+      setAddModalOpen(false);
+      setAddForm(buildEmptyForm());
+    } catch (error) {
+      if (error instanceof Error) {
+        setGeneralError(error.message);
+      } else {
+        setGeneralError('Não foi possível adicionar o aluno.');
+      }
+    } finally {
+      setIsSavingAdd(false);
+    }
   };
 
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     if (!selectedStudent) {
       return;
     }
 
-    const updatedStudent: Student = {
-      ...editForm,
-      status: editForm.status ? 'Ativo' : 'Inativo',
-    };
-
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.matricula === selectedStudent.matricula ? updatedStudent : s
-      )
-    );
-    setEditModalOpen(false);
-    setSelectedStudent(null);
-    setEditForm(buildEmptyForm());
+    setIsSavingEdit(true);
+    setGeneralError('');
+    try {
+      const payload = toPayload(editForm);
+      const updated = await updateStudent(selectedStudent.id, payload);
+      setStudents((prev) =>
+  prev.map((s) => (s.id === selectedStudent.id ? updated : s))
+      );
+      setEditModalOpen(false);
+      setSelectedStudent(null);
+      setEditForm(buildEmptyForm());
+    } catch (error) {
+      if (error instanceof Error) {
+        setGeneralError(error.message);
+      } else {
+        setGeneralError('Não foi possível atualizar o aluno.');
+      }
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!selectedStudent) {
       return;
     }
 
-    setStudents((prev) =>
-      prev.filter((s) => s.matricula !== selectedStudent.matricula)
-    );
-    setDeleteModalOpen(false);
-    setSelectedStudent(null);
+    setIsDeleting(true);
+    setGeneralError('');
+    try {
+      await deleteStudent(selectedStudent.id);
+  setStudents((prev) => prev.filter((s) => s.id !== selectedStudent.id));
+      setDeleteModalOpen(false);
+      setSelectedStudent(null);
+    } catch (error) {
+      if (error instanceof Error) {
+        setGeneralError(error.message);
+      } else {
+        setGeneralError('Não foi possível excluir o aluno.');
+      }
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -132,6 +231,11 @@ const StudentManagement = () => {
           Adicionar Aluno
         </Button>
       </Group>
+      {generalError && (
+        <Text c="red" mb={16}>
+          {generalError}
+        </Text>
+      )}
       <Group mb={16}>
         <Input
           leftSection={<MagnifyingGlass size={18} />}
@@ -146,8 +250,8 @@ const StudentManagement = () => {
           style={{ maxWidth: 340 }}
         />
       </Group>
-      <DataTable
-        idAccessor="matricula"
+  <DataTable<StudentRecord>
+        idAccessor="id"
         columns={[
           { accessor: 'name', title: 'Nome' },
           { accessor: 'email', title: 'E-mail' },
@@ -160,7 +264,7 @@ const StudentManagement = () => {
           {
             accessor: 'status',
             title: 'Status',
-            render: (row: Student) => (
+            render: (row: StudentRecord) => (
               <Badge color={row.status === 'Ativo' ? 'green' : 'gray'} variant="light">
                 {row.status}
               </Badge>
@@ -170,7 +274,7 @@ const StudentManagement = () => {
             accessor: 'actions',
             title: 'Ações',
             textAlign: 'right',
-            render: (row: Student) => (
+            render: (row: StudentRecord) => (
               <Group gap={4} justify="end">
                 <Button variant="subtle" color="blue" size="compact-md" radius={50} onClick={() => handleEdit(row)}>
                   <Pencil size={16} />
@@ -183,6 +287,7 @@ const StudentManagement = () => {
           },
         ]}
         records={filteredStudents}
+  fetching={isTableLoading}
         striped
         highlightOnHover
         withTableBorder
@@ -199,9 +304,9 @@ const StudentManagement = () => {
         centered
       >
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            handleAdd();
+            await handleAdd();
           }}
         >
           <Grid gutter={12}>
@@ -304,7 +409,7 @@ const StudentManagement = () => {
             <Button variant="default" onClick={() => setAddModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" color="blue">
+            <Button type="submit" color="blue" loading={isSavingAdd}>
               Salvar
             </Button>
           </Group>
@@ -319,9 +424,9 @@ const StudentManagement = () => {
         centered
       >
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            handleEditSave();
+            await handleEditSave();
           }}
         >
           <Grid gutter={12}>
@@ -427,7 +532,7 @@ const StudentManagement = () => {
             <Button variant="default" onClick={() => setEditModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" color="blue">
+            <Button type="submit" color="blue" loading={isSavingEdit}>
               Salvar
             </Button>
           </Group>
@@ -447,7 +552,7 @@ const StudentManagement = () => {
             Tem certeza que deseja excluir este aluno?
           </Text>
           <Group justify="center" mt={16}>
-            <Button color="red" onClick={handleDeleteConfirm}>
+            <Button color="red" onClick={() => void handleDeleteConfirm()} loading={isDeleting}>
               Sim, tenho certeza
             </Button>
             <Button variant="default" onClick={() => setDeleteModalOpen(false)}>
