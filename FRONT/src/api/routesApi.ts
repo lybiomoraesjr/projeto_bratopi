@@ -1,0 +1,159 @@
+import axios from "axios";
+import http from "./http";
+import type { Route, RouteForm } from "../types/route.types";
+
+type MongoId = string;
+
+export type RoutePayload = RouteForm;
+export type RouteRecord = Route;
+
+type RouteResponse = {
+	_id?: MongoId;
+	id?: MongoId;
+	name?: string;
+	paradas?: Array<MongoId | { _id: MongoId }>;
+	alunos?: Array<MongoId | { _id: MongoId }>;
+	dataHoraInicio?: string | null;
+	dataHoraFim?: string | null;
+	frequenciaDias?: string[] | null;
+	status?: string | null;
+};
+
+const DEFAULT_PERIODICITY = "daily";
+
+const toTimeString = (value?: string | null): string => {
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+	const hours = String(date.getHours()).padStart(2, "0");
+	const minutes = String(date.getMinutes()).padStart(2, "0");
+	return `${hours}:${minutes}`;
+};
+
+const toISODate = (time: string | undefined): string | undefined => {
+	if (!time) return undefined;
+	const [hours, minutes] = time.split(":").map(Number);
+	if (
+		Number.isNaN(hours) ||
+		hours === undefined ||
+		Number.isNaN(minutes) ||
+		minutes === undefined
+	) {
+		return undefined;
+	}
+	const date = new Date();
+	date.setHours(hours, minutes, 0, 0);
+	return date.toISOString();
+};
+
+const normalizeRoute = (
+	route: RouteResponse,
+	fallback?: RoutePayload,
+): RouteRecord => {
+	const stopSequence = Array.isArray(route.paradas)
+		? route.paradas.map((item) =>
+			typeof item === "string"
+				? item
+				: typeof item === "object" && item && "_id" in item
+					? String(item._id)
+					: "",
+		  ).filter(Boolean)
+		: fallback?.stopSequence ?? [];
+	const selectedStudents = Array.isArray(route.alunos)
+		? route.alunos.map((item) =>
+			typeof item === "string"
+				? item
+				: typeof item === "object" && item && "_id" in item
+					? String(item._id)
+					: "",
+		  ).filter(Boolean)
+		: fallback?.selectedStudents ?? [];
+	const periodicity =
+		(Array.isArray(route.frequenciaDias) && route.frequenciaDias.length > 0
+			? route.frequenciaDias[0]
+			: route.status ?? fallback?.periodicity ?? DEFAULT_PERIODICITY) ||
+		DEFAULT_PERIODICITY;
+
+	return {
+		id: route._id ?? route.id ?? "",
+		name: route.name ?? fallback?.name ?? "",
+		startStopId:
+			stopSequence[0] ?? fallback?.startStopId ?? fallback?.stopSequence?.[0] ?? "",
+		endStopId:
+			stopSequence[stopSequence.length - 1] ??
+			fallback?.endStopId ??
+			fallback?.stopSequence?.[fallback.stopSequence.length - 1] ??
+			"",
+		startTime: toTimeString(route.dataHoraInicio) ?? fallback?.startTime ?? "",
+		endTime: toTimeString(route.dataHoraFim) ?? fallback?.endTime ?? "",
+		periodicity,
+		selectedStudents,
+		stopSequence,
+	};
+};
+
+const buildRequestBody = (payload: RoutePayload) => {
+	const stopSequence = payload.stopSequence.length
+		? payload.stopSequence
+		: [payload.startStopId, payload.endStopId].filter(Boolean);
+
+	return {
+		name: payload.name,
+		paradas: stopSequence,
+		alunos: payload.selectedStudents,
+		frequenciaDias: payload.periodicity
+			? [payload.periodicity]
+			: [DEFAULT_PERIODICITY],
+		dataHoraInicio: toISODate(payload.startTime),
+		dataHoraFim: toISODate(payload.endTime),
+		status: payload.periodicity || DEFAULT_PERIODICITY,
+	};
+};
+
+export const listRoutes = async (): Promise<RouteRecord[]> => {
+	const { data } = await http.get<RouteResponse[]>("/api/rotas");
+	return data.map((route) => normalizeRoute(route));
+};
+
+export const getRouteById = async (id: string): Promise<RouteRecord> => {
+	const { data } = await http.get<RouteResponse>(`/api/rotas/${id}`);
+	return normalizeRoute(data);
+};
+
+export const createRoute = async (
+	payload: RoutePayload,
+): Promise<RouteRecord> => {
+	const { data } = await http.post<RouteResponse>(
+		"/api/rotas",
+		buildRequestBody(payload),
+	);
+	return normalizeRoute(data, payload);
+};
+
+export const updateRoute = async (
+	id: string,
+	payload: RoutePayload,
+): Promise<RouteRecord> => {
+	const { data } = await http.put<RouteResponse>(
+		`/api/rotas/${id}`,
+		buildRequestBody(payload),
+	);
+	return normalizeRoute(data, payload);
+};
+
+export const deleteRoute = async (id: string): Promise<void> => {
+	await http.delete(`/api/rotas/${id}`);
+};
+
+export const unwrapAxiosError = (error: unknown): Error => {
+	if (axios.isAxiosError(error)) {
+		const message =
+			typeof error.response?.data === "object" &&
+			error.response?.data !== null
+				? (error.response.data as { error?: string }).error
+				: undefined;
+		return new Error(message || "Ocorreu um erro ao se comunicar com a API");
+	}
+	if (error instanceof Error) return error;
+	return new Error("Erro inesperado ao executar requisição");
+};

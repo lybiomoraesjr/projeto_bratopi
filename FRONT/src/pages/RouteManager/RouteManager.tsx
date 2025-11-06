@@ -47,7 +47,7 @@ import {
     stopOptions,
     studentOptions,
 } from "../../mock/route.mock";
-import { API_CONFIG } from "../../config/api.config";
+import { useRoutesApi } from "../../hooks/useRoutesApi";
 
 const emptyForm: RouteForm = {
     name: "",
@@ -87,6 +87,7 @@ function SortableItem({ id, children }: SortableItemProps) {
 }
 
 const RouteManager = () => {
+    const { listRoutes, createRoute, updateRoute, deleteRoute } = useRoutesApi();
     const [routes, setRoutes] = useState<Route[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -101,27 +102,34 @@ const RouteManager = () => {
     const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
     const [isFallbackRoute, setIsFallbackRoute] = useState(false);
     const routeRequestController = useRef<AbortController | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
+        let mounted = true;
+
         const fetchRoutes = async () => {
             try {
                 setIsLoading(true);
                 setError(null);
-                const response = await fetch(`${API_CONFIG.baseURL}/api/rotas`, { credentials: 'include' });
-                if (!response.ok) {
-                    throw new Error('Falha ao buscar rotas');
-                }
-                const data = await response.json();
+                const data = await listRoutes();
+                if (!mounted) return;
                 setRoutes(data);
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido');
+                if (!mounted) return;
+                const message = err instanceof Error ? err.message : "Falha ao buscar rotas";
+                setError(message);
             } finally {
-                setIsLoading(false);
+                if (mounted) setIsLoading(false);
             }
         };
 
-        fetchRoutes();
-    }, []);
+        void fetchRoutes();
+
+        return () => {
+            mounted = false;
+        };
+    }, [listRoutes]);
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -251,24 +259,29 @@ const RouteManager = () => {
         setIsModalOpen(true);
     };
 
-    const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const handleFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (modalMode === "create") {
-            const newRoute: Route = {
-                id: String(Date.now()),
-                ...form,
-            };
-            setRoutes((prev) => [...prev, newRoute]);
-        } else if (editingId) {
-            setRoutes((prev) =>
-                prev.map((route) =>
-                    route.id === editingId
-                        ? { ...route, ...form }
-                        : route
-                )
-            );
+        try {
+            setIsSaving(true);
+            setError(null);
+            if (modalMode === "create") {
+                const created = await createRoute(form);
+                setRoutes((prev) => [...prev, created]);
+            } else if (editingId) {
+                const updated = await updateRoute(editingId, form);
+                setRoutes((prev) =>
+                    prev.map((route) => (route.id === updated.id ? updated : route))
+                );
+            }
+            setIsModalOpen(false);
+            setEditingId(null);
+            setForm(emptyForm);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Falha ao salvar rota";
+            setError(message);
+        } finally {
+            setIsSaving(false);
         }
-        setIsModalOpen(false);
     };
 
     const addStudent = () => {
@@ -325,10 +338,19 @@ const RouteManager = () => {
         setRouteToDelete(route);
     };
 
-    const confirmDelete = () => {
-        if (routeToDelete) {
+    const confirmDelete = async () => {
+        if (!routeToDelete) return;
+        try {
+            setIsDeleting(true);
+            setError(null);
+            await deleteRoute(routeToDelete.id);
             setRoutes((prev) => prev.filter((route) => route.id !== routeToDelete.id));
             setRouteToDelete(null);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Falha ao excluir rota";
+            setError(message);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -426,6 +448,7 @@ const RouteManager = () => {
                                                     variant="subtle"
                                                     leftSection={<Pencil size={16} />}
                                                     onClick={() => openEditModal(route)}
+                                                    disabled={isSaving}
                                                 >
                                                     Editar
                                                 </Button>
@@ -434,6 +457,7 @@ const RouteManager = () => {
                                                     variant="subtle"
                                                     onClick={() => openDeleteModal(route)}
                                                     aria-label="Excluir rota"
+                                                    disabled={isDeleting}
                                                 >
                                                     <Trash size={18} />
                                                 </ActionIcon>
@@ -684,10 +708,11 @@ const RouteManager = () => {
                                     variant="default"
                                     onClick={() => setIsModalOpen(false)}
                                     type="button"
+                                    disabled={isSaving}
                                 >
                                     Cancelar
                                 </Button>
-                                <Button type="submit">
+                                <Button type="submit" loading={isSaving} disabled={isSaving}>
                                     {modalMode === "create" ? "Salvar Rota" : "Atualizar Rota"}
                                 </Button>
                             </Group>
@@ -719,7 +744,7 @@ const RouteManager = () => {
                         <Button variant="default" onClick={cancelDelete}>
                             Cancelar
                         </Button>
-                        <Button color="red" onClick={confirmDelete}>
+                        <Button color="red" onClick={confirmDelete} loading={isDeleting} disabled={isDeleting}>
                             Excluir rota
                         </Button>
                     </Group>
