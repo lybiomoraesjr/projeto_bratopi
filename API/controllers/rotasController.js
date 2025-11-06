@@ -138,7 +138,6 @@ async function getById(req, res, next) {
 async function create(req, res, next) {
     try {
         const payload = req.body || {}
-        console.log('📥 Payload recebido:', JSON.stringify(payload, null, 2))
         
         if (!payload.name) return res.status(400).json({ error: 'Campo name obrigatório' })
         const paradasResult = parseObjectIdArray(payload.paradas || [], 'paradas')
@@ -148,8 +147,6 @@ async function create(req, res, next) {
         if (alunosResult.error) return res.status(400).json({ error: alunosResult.error })
 
         const timeValueInicio = payload.startTime ?? payload.horarioInicio ?? payload.horaInicio
-        console.log('⏰ Valor timeValueInicio:', timeValueInicio)
-        console.log('📅 Valor dataHoraInicio:', payload.dataHoraInicio)
         
         const inicioResult = parseDateWithFallback(
             payload.dataHoraInicio,
@@ -157,12 +154,9 @@ async function create(req, res, next) {
             'dataHoraInicio',
             true
         )
-        console.log('✅ inicioResult:', inicioResult)
         if (inicioResult.error) return res.status(400).json({ error: inicioResult.error })
 
         const timeValueFim = payload.endTime ?? payload.horarioFim ?? payload.horaFim
-        console.log('⏰ Valor timeValueFim:', timeValueFim)
-        console.log('📅 Valor dataHoraFim:', payload.dataHoraFim)
         
         const fimResult = parseDateWithFallback(
             payload.dataHoraFim,
@@ -170,7 +164,6 @@ async function create(req, res, next) {
             'dataHoraFim',
             true
         )
-        console.log('✅ fimResult:', fimResult)
         if (fimResult.error) return res.status(400).json({ error: fimResult.error })
 
         const frequenciaDias = parseFrequenciaDias(payload.frequenciaDias, payload.periodicity)
@@ -185,7 +178,6 @@ async function create(req, res, next) {
             frequenciaDias,
             status,
         }
-        console.log('🚀 Dados que serão salvos:', JSON.stringify(rotaData, null, 2))
         
         const item = await Rota.create(rotaData)
         res.status(201).json(item)

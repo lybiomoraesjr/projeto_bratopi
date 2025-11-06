@@ -42,7 +42,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import "leaflet/dist/leaflet.css";
 import type { Route, RouteForm } from "../../types/route.types";
-import { periodicityOptions } from "../../mock/route.mock";
+import { ROUTE_PERIODICITY_OPTIONS } from "../../constants/routePeriodicity.constants";
 import { useRoutesApi } from "../../hooks/useRoutesApi";
 import { useStopsApi, type StopRecord } from "../../hooks/useStopsApi";
 import { useStudentsApi, type StudentRecord } from "../../hooks/useStudentsApi";
@@ -529,7 +529,7 @@ const RouteManager = () => {
                                             </Stack>
                                         </Table.Td>
                                         <Table.Td>
-                                            <Badge variant="light">{periodicityOptions.find(p => p.value === route.periodicity)?.label}</Badge>
+                                            <Badge variant="light">{ROUTE_PERIODICITY_OPTIONS.find(option => option.value === route.periodicity)?.label ?? route.periodicity}</Badge>
                                         </Table.Td>
                                         <Table.Td>{route.selectedStudents.length}</Table.Td>
                                         <Table.Td>{route.stopSequence.length}</Table.Td>
@@ -688,7 +688,7 @@ const RouteManager = () => {
                                 <Grid.Col span={12}>
                                     <Select
                                         label="Periodicidade"
-                                        data={periodicityOptions}
+                                        data={ROUTE_PERIODICITY_OPTIONS}
                                         value={form.periodicity}
                                         onChange={(value) => setForm((prev) => ({ ...prev, periodicity: value || "daily" }))}
                                         required
