@@ -46,8 +46,8 @@ npm run dev
 Criar:
 
 ```bash
-# exemplo: login (credenciais: admin@example.com / 3456)
-curl -X POST http://localhost:3456/auth/login -H 'Content-Type: application/json' -d '{"email":"admin@example.com","password":"3456"}'
+# exemplo: login (credenciais: admin@example.com / 345678)
+curl -X POST http://localhost:3456/auth/login -H 'Content-Type: application/json' -d '{"email":"admin@example.com","password":"345678"}'
 
 # use o token retornado nas próximas chamadas com header: Authorization: Bearer <token>
 

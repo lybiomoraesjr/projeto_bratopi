@@ -38,7 +38,34 @@ docker-compose logs -f
 
 Pressione `Ctrl+C` para sair da visualização de logs (os serviços continuarão rodando).
 
-### 4. Acesse a aplicação
+### 4. ⚠️ IMPORTANTE: Popular o Banco de Dados (Seeds)
+
+**ANTES de usar a aplicação**, você precisa rodar os seeds para criar dados iniciais:
+
+```bash
+# Rodar todos os seeds de uma vez (recomendado)
+docker-compose exec api npm run seed:all
+```
+
+Ou rodar individualmente:
+
+```bash
+# 1. Criar usuário administrador (OBRIGATÓRIO)
+docker-compose exec api npm run seed:users
+
+# 2. Criar paradas e rotas de exemplo (opcional)
+docker-compose exec api npm run seed:paradas
+
+# 3. Criar alunos de exemplo (opcional)
+docker-compose exec api npm run seed:alunos
+```
+
+**O que cada seed cria:**
+- `seed:users` → Usuário administrador para login
+- `seed:paradas` → 4 paradas de exemplo + 2 rotas
+- `seed:alunos` → 3 alunos de exemplo
+
+### 5. Acesse a aplicação
 
 - **Frontend**: http://localhost:3000
 - **API**: http://localhost:3456
@@ -49,7 +76,7 @@ Pressione `Ctrl+C` para sair da visualização de logs (os serviços continuarã
 Use as seguintes credenciais para fazer login:
 
 - **Email**: `admin@example.com`
-- **Senha**: `3456`
+- **Senha**: `345678`
 
 ## 📡 API Endpoints
 
@@ -59,7 +86,7 @@ Use as seguintes credenciais para fazer login:
   ```json
   {
     "email": "admin@example.com",
-    "password": "3456"
+    "password": "345678"
   }
   ```
 - `POST /auth/logout` - Fazer logout
@@ -241,7 +268,7 @@ VITE_API_BASE_URL=http://localhost:3456
 # Login
 curl -i -X POST http://localhost:3456/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"3456"}' \
+  -d '{"email":"admin@example.com","password":"345678"}' \
   -c cookies.txt
 
 # Listar rotas (usando cookie)
