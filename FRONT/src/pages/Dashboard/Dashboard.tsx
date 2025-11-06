@@ -15,20 +15,19 @@ import {
 import { DataTable } from "mantine-datatable";
 import { MagnifyingGlass, Eye, Play, WarningCircle } from "phosphor-react";
 import {
-  useDashboardApi,
+  useDashboard,
   type DashboardRouteFilters,
   type DashboardSummary,
   type DashboardRouteRecord,
-} from "../../hooks/useDashboardApi";
+} from "../../hooks/useDashboard";
 
 const Dashboard = () => {
-  const { getRoutes, getSummary } = useDashboardApi();
+  const { loadDashboard } = useDashboard();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [routes, setRoutes] = useState<DashboardRouteRecord[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [search, setSearch] = useState<string>("");
-  const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(true);
-  const [isRoutesLoading, setIsRoutesLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const filterParams = useMemo<DashboardRouteFilters>(() => {
@@ -40,51 +39,28 @@ const Dashboard = () => {
 
   useEffect(() => {
     let mounted = true;
-    const fetchSummary = async () => {
+    const fetchDashboardData = async () => {
       try {
-        setIsSummaryLoading(true);
+        setIsLoading(true);
         setError(null);
-        const data = await getSummary({ status: filterParams.status });
+        const data = await loadDashboard(filterParams);
         if (!mounted) return;
-        setSummary(data);
+        setRoutes(data.routes);
+        setSummary(data.summary);
       } catch (err) {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Falha ao carregar resumo");
+        setError(err instanceof Error ? err.message : "Falha ao carregar dados");
       } finally {
-        if (mounted) setIsSummaryLoading(false);
+        if (mounted) setIsLoading(false);
       }
     };
 
-    void fetchSummary();
+    void fetchDashboardData();
 
     return () => {
       mounted = false;
     };
-  }, [getSummary, filterParams.status]);
-
-  useEffect(() => {
-    let mounted = true;
-    const fetchRoutes = async () => {
-      try {
-        setIsRoutesLoading(true);
-        setError(null);
-        const data = await getRoutes(filterParams);
-        if (!mounted) return;
-        setRoutes(data);
-      } catch (err) {
-        if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Falha ao carregar rotas");
-      } finally {
-        if (mounted) setIsRoutesLoading(false);
-      }
-    };
-
-    void fetchRoutes();
-
-    return () => {
-      mounted = false;
-    };
-  }, [getRoutes, filterParams]);
+  }, [loadDashboard, filterParams]);
 
   const summaryValues: DashboardSummary = summary ?? {
     totalRoutes: 0,
@@ -114,7 +90,7 @@ const Dashboard = () => {
               <Title order={1} size={36} fw={900} c="#1e293b">
                 Dashboard - Rotas de Hoje
               </Title>
-              {isSummaryLoading && <Loader size="sm" color="blue" />}
+              {isLoading && <Loader size="sm" color="blue" />}
             </Group>
             {error && (
               <Alert
@@ -275,7 +251,7 @@ const Dashboard = () => {
                 },
               ]}
               records={routes}
-              fetching={isRoutesLoading}
+              fetching={isLoading}
               striped
               highlightOnHover
               withTableBorder
