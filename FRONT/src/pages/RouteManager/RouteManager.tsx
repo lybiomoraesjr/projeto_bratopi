@@ -42,12 +42,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import "leaflet/dist/leaflet.css";
 import type { Route, RouteForm } from "../../types/route.types";
-import {
-    periodicityOptions,
-    stopOptions,
-    studentOptions,
-} from "../../mock/route.mock";
+import { periodicityOptions } from "../../mock/route.mock";
 import { useRoutesApi } from "../../hooks/useRoutesApi";
+import { useStopsApi, type StopRecord } from "../../hooks/useStopsApi";
+import { useStudentsApi, type StudentRecord } from "../../hooks/useStudentsApi";
 
 const emptyForm: RouteForm = {
     name: "",
@@ -88,6 +86,9 @@ function SortableItem({ id, children }: SortableItemProps) {
 
 const RouteManager = () => {
     const { listRoutes, createRoute, updateRoute, deleteRoute } = useRoutesApi();
+    const { listStops } = useStopsApi();
+    const { listStudents } = useStudentsApi();
+
     const [routes, setRoutes] = useState<Route[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -104,6 +105,10 @@ const RouteManager = () => {
     const routeRequestController = useRef<AbortController | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [stops, setStops] = useState<StopRecord[]>([]);
+    const [students, setStudents] = useState<StudentRecord[]>([]);
+    const [isStopsLoading, setIsStopsLoading] = useState(true);
+    const [isStudentsLoading, setIsStudentsLoading] = useState(true);
 
     useEffect(() => {
         let mounted = true;
@@ -131,6 +136,82 @@ const RouteManager = () => {
         };
     }, [listRoutes]);
 
+    useEffect(() => {
+        let mounted = true;
+
+        const fetchStops = async () => {
+            try {
+                setIsStopsLoading(true);
+                const data = await listStops();
+                if (!mounted) return;
+                setStops(data);
+            } catch (err) {
+                if (!mounted) return;
+                const message = err instanceof Error ? err.message : "Falha ao carregar paradas";
+                setError(message);
+            } finally {
+                if (mounted) setIsStopsLoading(false);
+            }
+        };
+
+        void fetchStops();
+
+        return () => {
+            mounted = false;
+        };
+    }, [listStops]);
+
+    useEffect(() => {
+        let mounted = true;
+
+        const fetchStudents = async () => {
+            try {
+                setIsStudentsLoading(true);
+                const data = await listStudents();
+                if (!mounted) return;
+                setStudents(data);
+            } catch (err) {
+                if (!mounted) return;
+                const message = err instanceof Error ? err.message : "Falha ao carregar alunos";
+                setError(message);
+            } finally {
+                if (mounted) setIsStudentsLoading(false);
+            }
+        };
+
+        void fetchStudents();
+
+        return () => {
+            mounted = false;
+        };
+    }, [listStudents]);
+
+    const stopLookup = useMemo(() => {
+        const map = new Map<string, StopRecord>();
+        for (const stop of stops) {
+            map.set(stop.id, stop);
+        }
+        return map;
+    }, [stops]);
+
+    const studentLookup = useMemo(() => {
+        const map = new Map<string, StudentRecord>();
+        for (const student of students) {
+            map.set(student.id, student);
+        }
+        return map;
+    }, [students]);
+
+    const stopOptions = useMemo(
+        () => stops.map((stop) => ({ value: stop.id, label: stop.name })),
+        [stops],
+    );
+
+    const studentOptions = useMemo(
+        () => students.map((student) => ({ value: student.id, label: student.name })),
+        [students],
+    );
+
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -139,10 +220,10 @@ const RouteManager = () => {
     );
 
     // Calculate route using OSRM and fall back to straight segments if needed
-    const calculateRoute = useCallback(async (stops: string[]) => {
+    const calculateRoute = useCallback(async (stopIds: string[]) => {
         routeRequestController.current?.abort();
 
-        if (stops.length < 2) {
+        if (stopIds.length < 2) {
             routeRequestController.current = null;
             setRouteCoordinates([]);
             setIsCalculatingRoute(false);
@@ -150,9 +231,9 @@ const RouteManager = () => {
             return;
         }
 
-        const coordinates = stops
+        const coordinates = stopIds
             .map((stopId) => {
-                const stop = stopOptions.find((s) => s.value === stopId);
+                const stop = stopLookup.get(stopId);
                 return stop ? [stop.lng, stop.lat] : null;
             })
             .filter(Boolean) as [number, number][];
@@ -208,9 +289,9 @@ const RouteManager = () => {
             return;
         }
 
-        const fallback = stops
+        const fallback = stopIds
             .map((stopId) => {
-                const stop = stopOptions.find((s) => s.value === stopId);
+                const stop = stopLookup.get(stopId);
                 return stop ? [stop.lat, stop.lng] : null;
             })
             .filter(Boolean) as [number, number][];
@@ -219,7 +300,7 @@ const RouteManager = () => {
         setIsFallbackRoute(true);
         setIsCalculatingRoute(false);
         routeRequestController.current = null;
-    }, []);
+    }, [stopLookup]);
 
     // Calculate route when stop sequence changes
     useEffect(() => {
@@ -285,7 +366,11 @@ const RouteManager = () => {
     };
 
     const addStudent = () => {
-        if (selectedStudentToAdd && !form.selectedStudents.includes(selectedStudentToAdd)) {
+        if (
+            selectedStudentToAdd &&
+            studentLookup.has(selectedStudentToAdd) &&
+            !form.selectedStudents.includes(selectedStudentToAdd)
+        ) {
             setForm((prev) => ({
                 ...prev,
                 selectedStudents: [...prev.selectedStudents, selectedStudentToAdd],
@@ -302,7 +387,11 @@ const RouteManager = () => {
     };
 
     const addStop = () => {
-        if (selectedStopToAdd && !form.stopSequence.includes(selectedStopToAdd)) {
+        if (
+            selectedStopToAdd &&
+            stopLookup.has(selectedStopToAdd) &&
+            !form.stopSequence.includes(selectedStopToAdd)
+        ) {
             setForm((prev) => ({
                 ...prev,
                 stopSequence: [...prev.stopSequence, selectedStopToAdd],
@@ -356,8 +445,10 @@ const RouteManager = () => {
 
     const cancelDelete = () => setRouteToDelete(null);
 
-    const totalStudents = useMemo(() => studentOptions.length, []);
-    const totalStops = useMemo(() => stopOptions.length, []);
+    const totalStudents = students.length;
+    const totalStops = stops.length;
+
+    const isDataLoading = isLoading || isStopsLoading || isStudentsLoading;
 
     return (
         <Paper shadow="md" radius={18} p={32} maw={1200} mx="auto" my={32}>
@@ -388,6 +479,7 @@ const RouteManager = () => {
                         leftSection={<Plus size={18} />}
                         onClick={openCreateModal}
                         radius="md"
+                        disabled={isStopsLoading || stopOptions.length === 0}
                     >
                         Nova rota
                     </Button>
@@ -405,7 +497,7 @@ const RouteManager = () => {
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
-                            {isLoading ? (
+                            {isDataLoading ? (
                                 <Table.Tr>
                                     <Table.Td colSpan={5}>
                                         <Text ta="center">Carregando rotas...</Text>
@@ -510,12 +602,12 @@ const RouteManager = () => {
                                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                                 />
                                 {form.stopSequence.map((stopId, index) => {
-                                    const stop = stopOptions.find((s) => s.value === stopId);
+                                    const stop = stopLookup.get(stopId);
                                     if (!stop) return null;
                                     return (
                                         <Marker key={stopId} position={[stop.lat, stop.lng]}>
                                             <Popup>
-                                                {stop.label} (Posição {index + 1})
+                                                {stop.name} (Posição {index + 1})
                                             </Popup>
                                         </Marker>
                                     );
@@ -555,6 +647,7 @@ const RouteManager = () => {
                                         value={form.startStopId}
                                         onChange={(value) => setForm((prev) => ({ ...prev, startStopId: value || "" }))}
                                         required
+                                        disabled={isStopsLoading || stopOptions.length === 0}
                                     />
                                 </Grid.Col>
                                 <Grid.Col span={6}>
@@ -565,6 +658,7 @@ const RouteManager = () => {
                                         value={form.endStopId}
                                         onChange={(value) => setForm((prev) => ({ ...prev, endStopId: value || "" }))}
                                         required
+                                        disabled={isStopsLoading || stopOptions.length === 0}
                                     />
                                 </Grid.Col>
                                 <Grid.Col span={6}>
@@ -615,21 +709,27 @@ const RouteManager = () => {
                                             value={selectedStudentToAdd}
                                             onChange={(value) => setSelectedStudentToAdd(value || "")}
                                             style={{ flex: 1 }}
+                                            disabled={isStudentsLoading || studentOptions.length === 0}
                                         />
                                         <Button
                                             leftSection={<Plus size={16} />}
                                             onClick={addStudent}
-                                            disabled={!selectedStudentToAdd}
+                                            disabled={
+                                                isStudentsLoading ||
+                                                studentOptions.length === 0 ||
+                                                !selectedStudentToAdd ||
+                                                !studentLookup.has(selectedStudentToAdd)
+                                            }
                                         >
                                             Adicionar
                                         </Button>
                                     </Group>
                                     <Stack gap="xs">
                                         {form.selectedStudents.map((studentId) => {
-                                            const student = studentOptions.find(s => s.value === studentId);
+                                            const student = studentLookup.get(studentId);
                                             return (
                                                 <Group key={studentId} justify="space-between" p="xs" bg="gray.0" style={{ borderRadius: 4 }}>
-                                                    <Text size="sm">{student?.label}</Text>
+                                                    <Text size="sm">{student ? student.name : "Aluno desconhecido"}</Text>
                                                     <ActionIcon
                                                         color="red"
                                                         variant="subtle"
@@ -658,11 +758,17 @@ const RouteManager = () => {
                                             value={selectedStopToAdd}
                                             onChange={(value) => setSelectedStopToAdd(value || "")}
                                             style={{ flex: 1 }}
+                                            disabled={isStopsLoading || stopOptions.length === 0}
                                         />
                                         <Button
                                             leftSection={<Plus size={16} />}
                                             onClick={addStop}
-                                            disabled={!selectedStopToAdd}
+                                            disabled={
+                                                isStopsLoading ||
+                                                stopOptions.length === 0 ||
+                                                !selectedStopToAdd ||
+                                                !stopLookup.has(selectedStopToAdd)
+                                            }
                                         >
                                             Adicionar Parada
                                         </Button>
@@ -675,14 +781,14 @@ const RouteManager = () => {
                                         <SortableContext items={form.stopSequence} strategy={verticalListSortingStrategy}>
                                             <Stack gap="xs">
                                                 {form.stopSequence.map((stopId, index) => {
-                                                    const stop = stopOptions.find(s => s.value === stopId);
+                                                    const stop = stopLookup.get(stopId);
                                                     return (
                                                         <SortableItem key={stopId} id={stopId}>
                                                             <Group justify="space-between" p="xs" bg="gray.0" style={{ borderRadius: 4, cursor: "grab" }}>
                                                                 <Group gap="xs">
                                                                     <DotsSixVertical size={16} />
                                                                     <Text size="sm">
-                                                                        Parada {index + 1}: {stop?.label}
+                                                                        Parada {index + 1}: {stop ? stop.name : "Parada desconhecida"}
                                                                     </Text>
                                                                 </Group>
                                                                 <ActionIcon
