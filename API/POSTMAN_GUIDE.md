@@ -233,14 +233,15 @@ GET http://localhost:3456/api/rotas
 Resposta (200 OK):
 [
   {
-    "_id": "...",
-    "nome": "Rota Matutina Centro",
-    "origem": "Terminal Central",
-    "destino": "Escola Municipal",
-    "paradas": ["...", "..."],
-    "horaInicio": "07:00",
-    "horaFim": "08:30",
-    "status": "ativa"
+    "_id": "690cb35080df008d593ef6b3",
+    "name": "Rota A - Centro/Escola",
+    "paradas": ["690cb35080df008d593ef6ac", "690cb35080df008d593ef6ad"],
+    "alunos": [],
+    "dataHoraInicio": "2025-11-06T14:40:16.891Z",
+    "dataHoraFim": "2025-11-06T15:40:16.891Z",
+    "frequenciaDias": ["Segunda", "Quarta", "Sexta"],
+    "status": "ativa",
+    "createdAt": "2025-11-06T14:40:16.892Z"
   }
 ]
 ```
@@ -251,49 +252,97 @@ GET http://localhost:3456/api/rotas/:id
 
 Resposta (200 OK):
 {
-  "_id": "...",
-  "nome": "Rota Matutina Centro",
-  "origem": "Terminal Central",
-  "destino": "Escola Municipal",
+  "_id": "690cb35080df008d593ef6b3",
+  "name": "Rota A - Centro/Escola",
   "paradas": [
     {
-      "_id": "...",
-      "name": "Parada 1",
-      "address": "Endereço 1"
+      "_id": "690cb35080df008d593ef6ac",
+      "name": "Parada Central",
+      "address": "Rua Principal, 123",
+      "lat": -23.5505,
+      "lng": -46.6333
+    },
+    {
+      "_id": "690cb35080df008d593ef6ad",
+      "name": "Parada Escola A",
+      "address": "Av. Escola, 456"
     }
   ],
-  "horaInicio": "07:00",
-  "horaFim": "08:30",
-  "status": "ativa"
+  "alunos": [],
+  "dataHoraInicio": "2025-11-06T14:40:16.891Z",
+  "dataHoraFim": "2025-11-06T15:40:16.891Z",
+  "frequenciaDias": ["Segunda", "Quarta", "Sexta"],
+  "status": "ativa",
+  "createdAt": "2025-11-06T14:40:16.892Z"
 }
 ```
 
 ### Criar Nova Rota
+
+**Opção 1: Usando horaInicio/horaFim (formato simples HH:mm)**
 ```
 POST http://localhost:3456/api/rotas
 Content-Type: application/json
 
 Body:
 {
-  "nome": "Rota Vespertina Sul",
-  "origem": "Bairro Sul",
-  "destino": "Escola Estadual",
-  "paradas": ["674a7b8e9c1f2a3b4c5d6e7f", "674a7b8e9c1f2a3b4c5d6e80"],
+  "name": "Rota Vespertina Sul",
+  "paradas": ["690cb35080df008d593ef6ac", "690cb35080df008d593ef6ad"],
   "horaInicio": "13:00",
   "horaFim": "14:30",
   "status": "ativa"
 }
+```
+
+**Opção 2: Usando dataHoraInicio/dataHoraFim (formato ISO 8601)**
+```
+POST http://localhost:3456/api/rotas
+Content-Type: application/json
+
+Body:
+{
+  "name": "Rota Vespertina Sul",
+  "paradas": ["690cb35080df008d593ef6ac", "690cb35080df008d593ef6ad"],
+  "dataHoraInicio": "2025-11-06T13:00:00.000Z",
+  "dataHoraFim": "2025-11-06T14:30:00.000Z",
+  "status": "ativa"
+}
+```
+
+**Opção 3: Com frequência e alunos**
+```
+POST http://localhost:3456/api/rotas
+Content-Type: application/json
+
+Body:
+{
+  "name": "Rota Vespertina Sul",
+  "paradas": ["690cb35080df008d593ef6ac", "690cb35080df008d593ef6ad"],
+  "alunos": ["690cb35080df008d593ef6b0"],
+  "horaInicio": "13:00",
+  "horaFim": "14:30",
+  "frequenciaDias": ["Segunda", "Quarta", "Sexta"],
+  "status": "ativa"
+}
+```
+
+**Campos aceitos para horário:**
+- `horaInicio` e `horaFim` (formato "HH:mm")
+- `startTime` e `endTime` (formato "HH:mm")
+- `horarioInicio` e `horarioFim` (formato "HH:mm")
+- `dataHoraInicio` e `dataHoraFim` (formato ISO 8601 completo)
 
 Resposta (201 Created):
 {
   "_id": "...",
-  "nome": "Rota Vespertina Sul",
-  "origem": "Bairro Sul",
-  "destino": "Escola Estadual",
-  "paradas": ["...", "..."],
-  "horaInicio": "13:00",
-  "horaFim": "14:30",
-  "status": "ativa"
+  "name": "Rota Vespertina Sul",
+  "paradas": ["690cb35080df008d593ef6ac", "690cb35080df008d593ef6ad"],
+  "alunos": [],
+  "dataHoraInicio": "2025-11-06T13:00:00.000Z",
+  "dataHoraFim": "2025-11-06T14:30:00.000Z",
+  "frequenciaDias": ["Segunda", "Quarta", "Sexta"],
+  "status": "ativa",
+  "createdAt": "2025-11-06T14:40:16.892Z"
 }
 ```
 
@@ -304,7 +353,9 @@ Content-Type: application/json
 
 Body:
 {
-  "nome": "Rota Vespertina Sul - Atualizada",
+  "name": "Rota Vespertina Sul - Atualizada",
+  "horaInicio": "14:00",
+  "horaFim": "15:30",
   "status": "inativa"
 }
 ```
@@ -312,6 +363,8 @@ Body:
 ### Deletar Rota
 ```
 DELETE http://localhost:3456/api/rotas/:id
+
+Resposta (204 No Content)
 ```
 
 ---
@@ -547,7 +600,28 @@ Copie e salve como `GRTE_API.postman_collection.json`:
 2. **Salve os IDs** retornados para usar em operações de UPDATE e DELETE
 3. **Para criar rotas**, você precisa ter paradas criadas antes
 4. **A matrícula do aluno** deve ser única
-5. **Status válidos**: "ativo", "inativo" (para alunos e rotas)
+5. **Status válidos**: "ativa", "inativa" (para rotas) e "ativo", "inativo" (para alunos)
+
+### Campos de Rotas - Importante! 🚨
+
+**Campo de nome:**
+- ✅ Use `name` (não `nome`)
+
+**Campos de horário (aceita múltiplos formatos):**
+- ✅ `horaInicio` / `horaFim` (formato "HH:mm", ex: "13:00")
+- ✅ `startTime` / `endTime` (formato "HH:mm", ex: "13:00")  
+- ✅ `horarioInicio` / `horarioFim` (formato "HH:mm", ex: "13:00")
+- ✅ `dataHoraInicio` / `dataHoraFim` (formato ISO 8601, ex: "2025-11-06T13:00:00.000Z")
+
+**Campos opcionais:**
+- `paradas`: array de IDs de paradas (ex: `["690cb35080df008d593ef6ac"]`)
+- `alunos`: array de IDs de alunos (ex: `["690cb35080df008d593ef6b0"]`)
+- `frequenciaDias`: array de dias (ex: `["Segunda", "Quarta", "Sexta"]`)
+  - Valores válidos: "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"
+  - Ou presets: "daily", "weekdays", "weekends"
+- `status`: "ativa" ou "inativa" (padrão: "ativa")
+
+**⚠️ ATENÇÃO:** O modelo de Rota **NÃO possui** campos `origem` e `destino`. Use apenas o campo `name` para descrever a rota completa.
 
 ---
 

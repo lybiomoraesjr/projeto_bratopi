@@ -2,6 +2,21 @@ const { Types } = require('mongoose')
 const Rota = require('../models/Rota')
 
 const DIA_SEMANA_ENUM = new Set(['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'])
+const DIAS_DA_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+const FREQUENCIA_PRESETS = {
+    daily: [...DIAS_DA_SEMANA],
+    weekdays: DIAS_DA_SEMANA.slice(0, 5),
+    weekends: DIAS_DA_SEMANA.slice(5),
+}
+const STATUS_ALIASES = new Map([
+    ['ativa', 'ativa'],
+    ['active', 'ativa'],
+    ['inativa', 'inativa'],
+    ['inactive', 'inativa'],
+    ['daily', 'ativa'],
+    ['weekdays', 'ativa'],
+    ['weekends', 'ativa'],
+])
 
 function coerceObjectId(value) {
     if (typeof value !== 'string') return null
@@ -33,10 +48,73 @@ function parseDate(value, fieldName, required = false) {
     return { data: date }
 }
 
-function parseFrequenciaDias(values) {
-    if (!values) return []
-    const data = Array.isArray(values) ? values : [values]
-    return data.filter(dia => typeof dia === 'string' && DIA_SEMANA_ENUM.has(dia))
+function parseTimeOfDay(value, fieldName, required = false) {
+    if (value === undefined || value === null || value === '') {
+        if (required) {
+            return { error: `Campo ${fieldName} obrigatório` }
+        }
+        return { data: undefined }
+    }
+    if (typeof value !== 'string') {
+        return { error: `Campo ${fieldName} inválido` }
+    }
+    const [hoursPart, minutesPart] = value.trim().split(':')
+    const hours = Number(hoursPart)
+    const minutes = Number(minutesPart)
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        return { error: `Campo ${fieldName} inválido` }
+    }
+    const date = new Date()
+    date.setSeconds(0, 0)
+    date.setHours(hours, minutes)
+    return { data: date }
+}
+
+function parseDateWithFallback(datetimeValue, timeValue, fieldName, required = false) {
+    if (datetimeValue !== undefined && datetimeValue !== null && datetimeValue !== '') {
+        return parseDate(datetimeValue, fieldName, required)
+    }
+    return parseTimeOfDay(timeValue, fieldName, required)
+}
+
+function parseFrequenciaDias(values, fallbackPeriodicity) {
+    const result = []
+    const sources = []
+    if (values !== undefined) sources.push(values)
+    if (fallbackPeriodicity !== undefined) sources.push(fallbackPeriodicity)
+
+    for (const source of sources) {
+        if (!source) continue
+        const data = Array.isArray(source) ? source : [source]
+        for (const raw of data) {
+            if (typeof raw !== 'string') continue
+            const value = raw.trim()
+            if (DIA_SEMANA_ENUM.has(value)) {
+                result.push(value)
+                continue
+            }
+            const preset = FREQUENCIA_PRESETS[value]
+            if (preset) {
+                result.push(...preset)
+            }
+        }
+    }
+
+    if (!result.length) {
+        return []
+    }
+
+    const unique = []
+    for (const dia of result) {
+        if (!unique.includes(dia)) unique.push(dia)
+    }
+    return unique
+}
+
+function normalizeStatus(value) {
+    if (typeof value !== 'string') return undefined
+    const normalized = STATUS_ALIASES.get(value.trim().toLowerCase())
+    return normalized
 }
 
 // rota structure: { _id, name, paradas: [ObjectId], createdAt }
@@ -60,6 +138,8 @@ async function getById(req, res, next) {
 async function create(req, res, next) {
     try {
         const payload = req.body || {}
+        console.log('📥 Payload recebido:', JSON.stringify(payload, null, 2))
+        
         if (!payload.name) return res.status(400).json({ error: 'Campo name obrigatório' })
         const paradasResult = parseObjectIdArray(payload.paradas || [], 'paradas')
         if (paradasResult.error) return res.status(400).json({ error: paradasResult.error })
@@ -67,23 +147,47 @@ async function create(req, res, next) {
         const alunosResult = parseObjectIdArray(payload.alunos || [], 'alunos')
         if (alunosResult.error) return res.status(400).json({ error: alunosResult.error })
 
-        const inicioResult = parseDate(payload.dataHoraInicio, 'dataHoraInicio', true)
+        const timeValueInicio = payload.startTime ?? payload.horarioInicio ?? payload.horaInicio
+        console.log('⏰ Valor timeValueInicio:', timeValueInicio)
+        console.log('📅 Valor dataHoraInicio:', payload.dataHoraInicio)
+        
+        const inicioResult = parseDateWithFallback(
+            payload.dataHoraInicio,
+            timeValueInicio,
+            'dataHoraInicio',
+            true
+        )
+        console.log('✅ inicioResult:', inicioResult)
         if (inicioResult.error) return res.status(400).json({ error: inicioResult.error })
 
-        const fimResult = parseDate(payload.dataHoraFim, 'dataHoraFim', true)
+        const timeValueFim = payload.endTime ?? payload.horarioFim ?? payload.horaFim
+        console.log('⏰ Valor timeValueFim:', timeValueFim)
+        console.log('📅 Valor dataHoraFim:', payload.dataHoraFim)
+        
+        const fimResult = parseDateWithFallback(
+            payload.dataHoraFim,
+            timeValueFim,
+            'dataHoraFim',
+            true
+        )
+        console.log('✅ fimResult:', fimResult)
         if (fimResult.error) return res.status(400).json({ error: fimResult.error })
 
-        const frequenciaDias = parseFrequenciaDias(payload.frequenciaDias)
+        const frequenciaDias = parseFrequenciaDias(payload.frequenciaDias, payload.periodicity)
+        const status = normalizeStatus(payload.status) || 'ativa'
 
-        const item = await Rota.create({
+        const rotaData = {
             name: payload.name,
             paradas: paradasResult.data,
             alunos: alunosResult.data,
             dataHoraInicio: inicioResult.data,
             dataHoraFim: fimResult.data,
             frequenciaDias,
-            status: typeof payload.status === 'string' ? payload.status : undefined
-        })
+            status,
+        }
+        console.log('🚀 Dados que serão salvos:', JSON.stringify(rotaData, null, 2))
+        
+        const item = await Rota.create(rotaData)
         res.status(201).json(item)
     } catch (err) { next(err) }
 }
@@ -108,24 +212,39 @@ async function update(req, res, next) {
             existing.alunos = alunosResult.data
         }
 
-        if (req.body.dataHoraInicio !== undefined) {
-            const inicioResult = parseDate(req.body.dataHoraInicio, 'dataHoraInicio', true)
+        const shouldUpdateInicio = req.body.dataHoraInicio !== undefined || req.body.startTime !== undefined || req.body.horarioInicio !== undefined || req.body.horaInicio !== undefined
+        if (shouldUpdateInicio) {
+            const inicioResult = parseDateWithFallback(
+                req.body.dataHoraInicio,
+                req.body.startTime ?? req.body.horarioInicio ?? req.body.horaInicio,
+                'dataHoraInicio',
+                true
+            )
             if (inicioResult.error) return res.status(400).json({ error: inicioResult.error })
             existing.dataHoraInicio = inicioResult.data
         }
 
-        if (req.body.dataHoraFim !== undefined) {
-            const fimResult = parseDate(req.body.dataHoraFim, 'dataHoraFim', true)
+        const shouldUpdateFim = req.body.dataHoraFim !== undefined || req.body.endTime !== undefined || req.body.horarioFim !== undefined || req.body.horaFim !== undefined
+        if (shouldUpdateFim) {
+            const fimResult = parseDateWithFallback(
+                req.body.dataHoraFim,
+                req.body.endTime ?? req.body.horarioFim ?? req.body.horaFim,
+                'dataHoraFim',
+                true
+            )
             if (fimResult.error) return res.status(400).json({ error: fimResult.error })
             existing.dataHoraFim = fimResult.data
         }
 
-        if (req.body.frequenciaDias !== undefined) {
-            existing.frequenciaDias = parseFrequenciaDias(req.body.frequenciaDias)
+        const shouldUpdateFrequencia = req.body.frequenciaDias !== undefined || req.body.periodicity !== undefined
+        if (shouldUpdateFrequencia) {
+            existing.frequenciaDias = parseFrequenciaDias(req.body.frequenciaDias, req.body.periodicity)
         }
 
-        if (req.body.status !== undefined && typeof req.body.status === 'string') {
-            existing.status = req.body.status
+        if (req.body.status !== undefined) {
+            const nextStatus = normalizeStatus(req.body.status)
+            if (!nextStatus) return res.status(400).json({ error: 'Status inválido' })
+            existing.status = nextStatus
         }
 
         existing.updatedAt = new Date()

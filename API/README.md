@@ -132,6 +132,67 @@ docker compose up --build
 
 3. A API ficará disponível em http://localhost:3456 e o MongoDB em mongodb://localhost:27017 (volume persistente definido em `docker-compose.yml`).
 
+Comandos Úteis do Docker
+------------------------
+
+### Verificar status dos containers
+```bash
+docker compose ps
+```
+
+### Ver logs da API
+```bash
+# Ver logs em tempo real (pressione Ctrl+C para sair)
+docker compose logs api -f
+
+# Ver últimas 50 linhas
+docker compose logs api --tail=50
+
+# Ver todos os logs
+docker compose logs api
+```
+
+### Ver logs do MongoDB
+```bash
+docker compose logs mongo -f
+```
+
+### Reiniciar serviços
+```bash
+# Reiniciar apenas a API
+docker compose restart api
+
+# Reiniciar apenas o MongoDB
+docker compose restart mongo
+
+# Reiniciar todos os serviços
+docker compose restart
+```
+
+### Parar e remover containers
+```bash
+# Parar serviços
+docker compose stop
+
+# Parar e remover containers
+docker compose down
+
+# Parar, remover containers e volumes (apaga dados do banco!)
+docker compose down -v
+```
+
+### Acessar o terminal dentro do container
+```bash
+# Executar comando dentro do container da API
+docker compose exec api npm run seed:all
+
+# Abrir shell dentro do container da API
+docker compose exec api sh
+
+# Abrir MongoDB shell
+docker compose exec mongo mongosh
+```
+
 Observações sobre a pasta `data/`
 --------------------------------
 

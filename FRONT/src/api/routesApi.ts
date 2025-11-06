@@ -20,6 +20,57 @@ type RouteResponse = {
 };
 
 const DEFAULT_PERIODICITY = "daily";
+const DAYS_OF_WEEK = [
+	"Segunda",
+	"Terça",
+	"Quarta",
+	"Quinta",
+	"Sexta",
+	"Sábado",
+	"Domingo",
+];
+const FREQUENCY_PRESETS: Record<string, string[]> = {
+	daily: [...DAYS_OF_WEEK],
+	weekdays: DAYS_OF_WEEK.slice(0, 5),
+	weekends: DAYS_OF_WEEK.slice(5),
+};
+
+const normalizeFrequencyList = (values?: string[] | null): string[] => {
+	if (!Array.isArray(values)) return [];
+	const seen = new Set<string>();
+	const ordered: string[] = [];
+	for (const value of values) {
+		if (typeof value !== "string") continue;
+		if (!DAYS_OF_WEEK.includes(value)) continue;
+		if (seen.has(value)) continue;
+		seen.add(value);
+		ordered.push(value);
+	}
+	ordered.sort((a, b) => DAYS_OF_WEEK.indexOf(a) - DAYS_OF_WEEK.indexOf(b));
+	return ordered;
+};
+
+const inferPeriodicity = (
+	frequenciaDias?: string[] | null,
+	status?: string | null,
+	fallback?: string,
+): string => {
+	const normalized = normalizeFrequencyList(frequenciaDias);
+	if (normalized.length) {
+		for (const [key, preset] of Object.entries(FREQUENCY_PRESETS)) {
+			if (
+				preset.length === normalized.length &&
+				preset.every((dia, index) => dia === normalized[index])
+			) {
+				return key;
+			}
+		}
+	}
+	if (status === "inativa") {
+		return fallback ?? DEFAULT_PERIODICITY;
+	}
+	return fallback ?? DEFAULT_PERIODICITY;
+};
 
 const toTimeString = (value?: string | null): string => {
 	if (!value) return "";
@@ -68,11 +119,11 @@ const normalizeRoute = (
 					: "",
 		  ).filter(Boolean)
 		: fallback?.selectedStudents ?? [];
-	const periodicity =
-		(Array.isArray(route.frequenciaDias) && route.frequenciaDias.length > 0
-			? route.frequenciaDias[0]
-			: route.status ?? fallback?.periodicity ?? DEFAULT_PERIODICITY) ||
-		DEFAULT_PERIODICITY;
+	const periodicity = inferPeriodicity(
+		route.frequenciaDias,
+		route.status,
+		fallback?.periodicity ?? DEFAULT_PERIODICITY,
+	);
 
 	return {
 		id: route._id ?? route.id ?? "",
@@ -96,17 +147,15 @@ const buildRequestBody = (payload: RoutePayload) => {
 	const stopSequence = payload.stopSequence.length
 		? payload.stopSequence
 		: [payload.startStopId, payload.endStopId].filter(Boolean);
+	const frequenciaDiasPreset = FREQUENCY_PRESETS[payload.periodicity] ?? FREQUENCY_PRESETS[DEFAULT_PERIODICITY];
 
 	return {
 		name: payload.name,
 		paradas: stopSequence,
 		alunos: payload.selectedStudents,
-		frequenciaDias: payload.periodicity
-			? [payload.periodicity]
-			: [DEFAULT_PERIODICITY],
+		frequenciaDias: [...frequenciaDiasPreset],
 		dataHoraInicio: toISODate(payload.startTime),
 		dataHoraFim: toISODate(payload.endTime),
-		status: payload.periodicity || DEFAULT_PERIODICITY,
 	};
 };
 
