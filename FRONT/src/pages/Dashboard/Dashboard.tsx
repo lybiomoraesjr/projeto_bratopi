@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import {
   Paper,
   Group,
@@ -8,16 +9,90 @@ import {
   Input,
   SegmentedControl,
   rem,
+  Loader,
+  Alert,
 } from "@mantine/core";
 import { DataTable } from "mantine-datatable";
+import { MagnifyingGlass, Eye, Play, WarningCircle } from "phosphor-react";
 import {
-  MagnifyingGlass,
-  Eye,
-  Play,
-} from "phosphor-react";
-import { dashboardRoutes, dashboardSummary } from "../../mock/dashboard.mock";
+  useDashboardApi,
+  type DashboardRouteFilters,
+  type DashboardSummary,
+  type DashboardRouteRecord,
+} from "../../hooks/useDashboardApi";
 
 const Dashboard = () => {
+  const { getRoutes, getSummary } = useDashboardApi();
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [routes, setRoutes] = useState<DashboardRouteRecord[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>("todos");
+  const [search, setSearch] = useState<string>("");
+  const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(true);
+  const [isRoutesLoading, setIsRoutesLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const filterParams = useMemo<DashboardRouteFilters>(() => {
+    const params: DashboardRouteFilters = {};
+    if (statusFilter !== "todos") params.status = statusFilter;
+    if (search.trim()) params.search = search.trim();
+    return params;
+  }, [statusFilter, search]);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchSummary = async () => {
+      try {
+        setIsSummaryLoading(true);
+        setError(null);
+        const data = await getSummary({ status: filterParams.status });
+        if (!mounted) return;
+        setSummary(data);
+      } catch (err) {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "Falha ao carregar resumo");
+      } finally {
+        if (mounted) setIsSummaryLoading(false);
+      }
+    };
+
+    void fetchSummary();
+
+    return () => {
+      mounted = false;
+    };
+  }, [getSummary, filterParams.status]);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchRoutes = async () => {
+      try {
+        setIsRoutesLoading(true);
+        setError(null);
+        const data = await getRoutes(filterParams);
+        if (!mounted) return;
+        setRoutes(data);
+      } catch (err) {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "Falha ao carregar rotas");
+      } finally {
+        if (mounted) setIsRoutesLoading(false);
+      }
+    };
+
+    void fetchRoutes();
+
+    return () => {
+      mounted = false;
+    };
+  }, [getRoutes, filterParams]);
+
+  const summaryValues: DashboardSummary = summary ?? {
+    totalRoutes: 0,
+    inProgress: 0,
+    finished: 0,
+    alerts: 0,
+  };
+
   return (
     <div
       style={{
@@ -39,8 +114,19 @@ const Dashboard = () => {
               <Title order={1} size={36} fw={900} c="#1e293b">
                 Dashboard - Rotas de Hoje
               </Title>
-             
+              {isSummaryLoading && <Loader size="sm" color="blue" />}
             </Group>
+            {error && (
+              <Alert
+                icon={<WarningCircle size={20} />}
+                title="Erro ao carregar dados"
+                color="red"
+                mb={24}
+                radius="md"
+              >
+                {error}
+              </Alert>
+            )}
             {/* Cards */}
             <Group gap={24} mb={32} wrap="wrap">
               <Paper
@@ -54,7 +140,7 @@ const Dashboard = () => {
                   Rotas Totais
                 </Text>
                 <Text size="2xl" fw={700} c="#1e293b">
-                  {dashboardSummary.totalRoutes}
+                  {summaryValues.totalRoutes}
                 </Text>
               </Paper>
               <Paper
@@ -68,7 +154,7 @@ const Dashboard = () => {
                   Em Andamento
                 </Text>
                 <Text size="2xl" fw={700} c="#1e293b">
-                  {dashboardSummary.inProgress}
+                  {summaryValues.inProgress}
                 </Text>
               </Paper>
               <Paper
@@ -82,7 +168,7 @@ const Dashboard = () => {
                   Concluídas
                 </Text>
                 <Text size="2xl" fw={700} c="#1e293b">
-                  {dashboardSummary.finished}
+                  {summaryValues.finished}
                 </Text>
               </Paper>
               <Paper
@@ -96,7 +182,7 @@ const Dashboard = () => {
                   Alertas
                 </Text>
                 <Text size="2xl" fw={700} c="red">
-                  {dashboardSummary.alerts}
+                  {summaryValues.alerts}
                 </Text>
               </Paper>
             </Group>
@@ -109,7 +195,8 @@ const Dashboard = () => {
                   { label: "Concluído", value: "concluido" },
                   { label: "Atrasado", value: "atrasado" },
                 ]}
-                defaultValue="todos"
+                value={statusFilter}
+                onChange={setStatusFilter}
                 size="md"
                 radius={8}
                 color="blue"
@@ -120,6 +207,8 @@ const Dashboard = () => {
                 size="md"
                 radius={8}
                 style={{ width: 260, background: "#f1f5f9" }}
+                value={search}
+                onChange={(event) => setSearch(event.currentTarget.value)}
               />
             </Group>
             {/* DataTable Mantine */}
@@ -185,7 +274,8 @@ const Dashboard = () => {
                   ),
                 },
               ]}
-              records={dashboardRoutes}
+              records={routes}
+              fetching={isRoutesLoading}
               striped
               highlightOnHover
               withTableBorder
