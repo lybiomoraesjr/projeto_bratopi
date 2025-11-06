@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Paper,
   Group,
@@ -15,7 +15,6 @@ import {
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
 import { Pencil, Trash, Warning, Plus, MagnifyingGlass } from 'phosphor-react';
-import { initialStudents, schools } from '../../mock/student.mock';
 import type { Student } from '../../types/student.types';
 import {
   useStudentsApi,
@@ -24,6 +23,12 @@ import {
 } from '../../hooks/useStudentsApi';
 
 type StudentFormValues = Omit<Student, 'status'> & { status: boolean };
+
+const SCHOOL_OPTIONS = [
+  'Escola Municipal A',
+  'Escola Estadual B',
+  'Colégio C',
+];
 
 const toPayload = (form: StudentFormValues): StudentPayload => ({
   name: form.name,
@@ -62,15 +67,6 @@ const buildEmptyForm = (): StudentFormValues => ({
 });
 
 const StudentManagement = () => {
-  const fallbackStudents = useMemo<StudentRecord[]>(
-    () =>
-      initialStudents.map((student, index) => ({
-        ...student,
-        id: student.matricula || `fallback-${index}`,
-      })),
-    [],
-  );
-
   const { listStudents, createStudent, updateStudent, deleteStudent } = useStudentsApi();
 
   const [students, setStudents] = useState<StudentRecord[]>([]);
@@ -105,7 +101,7 @@ const StudentManagement = () => {
           setGeneralError('Falha ao carregar alunos da API.');
         }
         if (isMounted) {
-          setStudents(fallbackStudents);
+          setStudents([]);
         }
       } finally {
         if (isMounted) {
@@ -119,7 +115,7 @@ const StudentManagement = () => {
     return () => {
       isMounted = false;
     };
-  }, [fallbackStudents, listStudents]);
+  }, [listStudents]);
 
   const filteredStudents = students.filter(
     (s) =>
@@ -366,7 +362,7 @@ const StudentManagement = () => {
             <Grid.Col span={6}>
               <Select
                 label="Escola"
-                data={schools}
+                data={SCHOOL_OPTIONS}
                 value={addForm.escola}
                 onChange={(v) => setAddForm((f) => ({ ...f, escola: v || '' }))}
                 required
@@ -486,7 +482,7 @@ const StudentManagement = () => {
             <Grid.Col span={6}>
               <Select
                 label="Escola"
-                data={schools}
+                data={SCHOOL_OPTIONS}
                 value={editForm.escola}
                 onChange={(v) => setEditForm((f) => ({ ...f, escola: v || '' }))}
                 required
