@@ -1,0 +1,71 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:6
+    networks:
+      - grte_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+    ports:
+      - target: 27017
+        published: 27017
+        protocol: tcp
+        mode: host
+    volumes:
+      - mongo-data:/data/db
+
+  api:
+    image: grte-api:latest
+    networks:
+      - grte_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+    environment:
+      MONGODB_URI: "mongodb://mongo:27017/api_grte"
+      PORT: 3456
+    ports:
+      - target: 3456
+        published: 3456
+        protocol: tcp
+        mode: ingress
+    command: npm run dev
+
+  frontend:
+    image: grte-front:latest
+    networks:
+      - grte_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+    environment:
+      PORT: 5173
+    ports:
+      - target: 5173
+        published: 3000
+        protocol: tcp
+        mode: ingress
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  mongo-data:
+    driver: local
+
+networks:
+  grte_net:
+    external: true
+    name: grte_net
