@@ -1,0 +1,41 @@
+services:
+  mongo:
+    image: mongo:6
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  api:
+    build:
+      context: ./API
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      - mongo
+    environment:
+      MONGODB_URI: "mongodb://mongo:27017/api_grte"
+      PORT: 3456
+    ports:
+      - "3456:3456"
+    command: npm run dev
+
+  frontend:
+    build:
+      context: ./FRONT
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PORT: 5173
+    ports:
+      - "3000:5173"
+    # bind mount useful for development; remove in production
+    volumes:
+      - ./FRONT:/app
+      - /app/node_modules
+    # start vite dev server and bind to 0.0.0.0 so it is reachable from host
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  mongo-data:
